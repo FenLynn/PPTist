@@ -1,5 +1,36 @@
 import Clipboard from 'clipboard'
 import { decrypt } from '@/utils/crypto'
+import { LOCALSTORAGE_KEY_APP_CLIPBOARD } from '@/configs/storage'
+
+let inMemoryClipboardText = ''
+
+function writeAppClipboardCache(text: string) {
+  inMemoryClipboardText = String(text || '')
+  if (!inMemoryClipboardText) return
+
+  try {
+    localStorage.setItem(LOCALSTORAGE_KEY_APP_CLIPBOARD, JSON.stringify({
+      text: inMemoryClipboardText,
+      savedAt: Date.now(),
+    }))
+  } catch {
+    // Ignore localStorage failures and keep in-memory cache only.
+  }
+}
+
+function readAppClipboardCache() {
+  if (inMemoryClipboardText) return inMemoryClipboardText
+
+  try {
+    const raw = localStorage.getItem(LOCALSTORAGE_KEY_APP_CLIPBOARD)
+    if (!raw) return ''
+    const payload = JSON.parse(raw) as { text?: string }
+    inMemoryClipboardText = String(payload?.text || '')
+    return inMemoryClipboardText
+  } catch {
+    return ''
+  }
+}
 
 /**
  * 复制文本到剪贴板
@@ -7,6 +38,7 @@ import { decrypt } from '@/utils/crypto'
  */
 export const copyText = (text: string) => {
   return new Promise((resolve, reject) => {
+    writeAppClipboardCache(text)
     const fakeElement = document.createElement('button')
     const clipboard = new Clipboard(fakeElement, {
       text: () => text,
@@ -30,12 +62,22 @@ export const copyText = (text: string) => {
 // 读取剪贴板
 export const readClipboard = (): Promise<string> => {
   return new Promise((resolve, reject) => {
+    const fallbackText = readAppClipboardCache()
+
     if (navigator.clipboard?.readText) {
       navigator.clipboard.readText().then(text => {
-        if (!text) reject('剪贴板为空或者不包含文本')
-        return resolve(text)
+        if (text) {
+          writeAppClipboardCache(text)
+          return resolve(text)
+        }
+        if (fallbackText) return resolve(fallbackText)
+        reject('剪贴板为空或者不包含文本')
+      }).catch(() => {
+        if (fallbackText) return resolve(fallbackText)
+        reject('浏览器不支持或禁止访问剪贴板，请使用快捷键 Ctrl + V')
       })
     }
+    else if (fallbackText) resolve(fallbackText)
     else reject('浏览器不支持或禁止访问剪贴板，请使用快捷键 Ctrl + V')
   })
 }

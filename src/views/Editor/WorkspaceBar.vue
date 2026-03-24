@@ -444,16 +444,16 @@ const removeCloudDocument = async (filename?: string) => {
   align-items: center;
   gap: 8px;
   padding: 0 10px;
-  border: 1px solid #f0b429;
+  border: 1px solid #2d6cdf;
   border-radius: 6px;
-  background: linear-gradient(180deg, #fffaf0 0%, #fff5d9 100%);
-  box-shadow: inset 0 0 0 1px rgba(240, 180, 41, 0.15);
+  background: linear-gradient(180deg, #f5f9ff 0%, #eaf2ff 100%);
+  box-shadow: inset 0 0 0 1px rgba(45, 108, 223, 0.18);
 }
 
 .doc-title-label {
   flex-shrink: 0;
   font-size: 12px;
-  color: #8a6116;
+  color: #1d4fa8;
   font-weight: 600;
 }
 
@@ -464,7 +464,7 @@ const removeCloudDocument = async (filename?: string) => {
   border: 0;
   outline: none;
   background: transparent;
-  color: #6b4f13;
+  color: #1d4fa8;
   font-size: 12px;
 }
 
