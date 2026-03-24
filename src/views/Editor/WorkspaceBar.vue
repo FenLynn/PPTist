@@ -12,19 +12,6 @@
       <div class="action" :class="{ disabled: !primaryDoc || isPrimaryActive }" @click="goPrimaryDoc">去主稿</div>
     </div>
 
-    <div class="tabs">
-      <div
-        v-for="doc in docs"
-        :key="doc.id"
-        class="tab"
-        :class="{ active: doc.id === activeDocId }"
-        @click="activateTab(doc.id)"
-      >
-        <span class="tab-label">{{ doc.title }}<span v-if="doc.id === primaryDocId" class="tab-badge">主稿</span><span v-if="doc.dirty">*</span></span>
-        <span class="tab-close" @click.stop="closeTab(doc.id)">×</span>
-      </div>
-    </div>
-
     <Modal :visible="cloudVisible" :width="680" @closed="closeCloudManager">
       <div class="cloud-modal">
         <div class="cloud-toolbar">
@@ -70,7 +57,7 @@ import FileInput from '@/components/FileInput.vue'
 const mainStore = useMainStore()
 const slidesStore = useSlidesStore()
 const workspaceStore = useWorkspaceStore()
-const { docs, activeDocId, activeDoc, primaryDoc, primaryDocId } = storeToRefs(workspaceStore)
+const { activeDoc, primaryDoc, primaryDocId } = storeToRefs(workspaceStore)
 const { parseJSONFileToDocument, parseSpecificFileToDocument, parsePPTXFileToDocument } = useImport()
 
 const cloudVisible = ref(false)
@@ -88,18 +75,6 @@ const currentFilename = computed(() => {
 
 const createTab = () => {
   workspaceStore.addEmptyDocument()
-}
-
-const activateTab = (docId: string) => {
-  workspaceStore.activateDocument(docId)
-}
-
-const closeTab = (docId: string) => {
-  const doc = docs.value.find(item => item.id === docId)
-  if (!doc) return
-  if (doc.dirty && !window.confirm(`"${doc.title}" 有未保存修改，仍然关闭吗？`)) return
-  if (doc.id === primaryDocId.value && docs.value.length > 1 && !window.confirm(`"${doc.title}" 当前是主稿，关闭后会自动切换主稿，仍然继续吗？`)) return
-  workspaceStore.closeDocument(docId)
 }
 
 const setPrimaryDoc = () => {
@@ -293,7 +268,7 @@ const removeCloudDocument = async (filename: string) => {
   height: 100%;
   display: flex;
   align-items: center;
-  gap: 10px;
+  justify-content: flex-start;
   padding: 0 10px;
   border-bottom: 1px solid $borderColor;
   background: #f7f8fa;
@@ -303,7 +278,8 @@ const removeCloudDocument = async (filename: string) => {
   display: flex;
   align-items: center;
   gap: 6px;
-  flex-shrink: 0;
+  flex-wrap: nowrap;
+  min-width: 0;
 }
 
 .action,
@@ -337,63 +313,6 @@ const removeCloudDocument = async (filename: string) => {
     opacity: 0.45;
     cursor: default;
     pointer-events: none;
-  }
-}
-
-.tabs {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  min-width: 0;
-  overflow-x: auto;
-}
-
-.tab {
-  min-width: 0;
-  max-width: 220px;
-  height: 28px;
-  padding: 0 10px;
-  border: 1px solid #d7dce5;
-  border-radius: 999px;
-  background: #fff;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  cursor: pointer;
-  flex-shrink: 0;
-
-  &.active {
-    border-color: #2d6cdf;
-    background: #edf4ff;
-  }
-}
-
-.tab-label {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 12px;
-}
-
-.tab-badge {
-  margin-left: 6px;
-  padding: 1px 6px;
-  border-radius: 999px;
-  background: #dce9ff;
-  color: #2457b2;
-  font-size: 11px;
-}
-
-.tab-close {
-  width: 16px;
-  height: 16px;
-  line-height: 14px;
-  border-radius: 50%;
-  text-align: center;
-  font-size: 14px;
-
-  &:hover {
-    background: rgba(0, 0, 0, 0.08);
   }
 }
 

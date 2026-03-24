@@ -40,6 +40,8 @@ if (import.meta.env.MODE !== 'development') {
 }
 
 onMounted(async () => {
+  mainStore.initializeAIModelSettings(window.location.search)
+
   if (isAudienceMode) {
     slidesStore.setSlides([{
       id: nanoid(10),

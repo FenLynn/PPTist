@@ -71,6 +71,8 @@
           v-else
         >{{ title }}</div>
       </div>
+
+      <WorkspaceTabs class="workspace-tabs" />
     </div>
 
     <div class="right">
@@ -127,6 +129,7 @@ import Input from '@/components/Input.vue'
 import Popover from '@/components/Popover.vue'
 import PopoverMenuItem from '@/components/PopoverMenuItem.vue'
 import Divider from '@/components/Divider.vue'
+import WorkspaceTabs from '../WorkspaceTabs.vue'
 
 const mainStore = useMainStore()
 const slidesStore = useSlidesStore()
@@ -187,6 +190,16 @@ const openAIPPTDialog = () => {
   justify-content: center;
   align-items: center;
 }
+.left {
+  min-width: 0;
+  flex: 1;
+}
+
+.workspace-tabs {
+  min-width: 0;
+  flex: 1;
+}
+
 .menu-item {
   height: 30px;
   display: flex;

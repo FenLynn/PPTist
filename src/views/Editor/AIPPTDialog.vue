@@ -57,13 +57,8 @@
           <Select 
             class="config-content"
             style="width: 190px;"
-            v-model:value="model"
-            :options="[
-              { label: 'Gemini 2.5 Flash', value: 'gemini-2.5-flash' },
-              { label: 'Gemini 2.5 Pro', value: 'gemini-2.5-pro' },
-              { label: 'GLM-4.7-Flash', value: 'glm-4.7-flash' },
-              { label: 'Doubao-Seed-1.6-Flash', value: 'doubao-seed-1.6-flash' },
-            ]"
+            v-model:value="aiModel"
+            :options="aiModels"
           />
         </div>
         <div class="config-item">
@@ -140,6 +135,7 @@ import Checkbox from '@/components/Checkbox.vue'
 const mainStore = useMainStore()
 const slidesStore = useSlidesStore()
 const { templates } = storeToRefs(slidesStore)
+const { aiModel, aiModels } = storeToRefs(mainStore)
 
 const { resetSlides, isEmptySlide } = useSlideHandler()
 const { AIPPT, presetImgPool, getMdContent } = useAIPPT()
@@ -154,7 +150,6 @@ const loading = ref(false)
 const outlineCreating = ref(false)
 const overwrite = ref(true)
 const step = ref<'setup' | 'outline' | 'template'>('setup')
-const model = ref('gemini-2.5-flash')
 const outlineRef = useTemplateRef<HTMLElement>('outlineRef')
 const inputRef = useTemplateRef<InstanceType<typeof Input>>('inputRef')
 
@@ -191,7 +186,7 @@ const createOutline = async () => {
   const stream = await api.AIPPT_Outline({
     content: keyword.value,
     language: language.value,
-    model: model.value,
+    model: aiModel.value,
   })
   if ('error' in stream) {
     loading.value = false
@@ -242,7 +237,7 @@ const createPPT = async (template?: { slides: Slide[], theme: SlideTheme }) => {
     content: outline.value,
     language: language.value,
     style: style.value,
-    model: model.value,
+    model: aiModel.value,
   })
   if ('error' in stream) {
     loading.value = false

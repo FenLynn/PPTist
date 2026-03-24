@@ -1,5 +1,6 @@
 import { customAlphabet } from 'nanoid'
 import { defineStore } from 'pinia'
+import { resolveAIModelConfig, type AIModelOption } from '@/configs/ai'
 import { ToolbarStates } from '@/types/toolbar'
 import type { CreatingElement, ShapeFormatPainter, TextFormatPainter } from '@/types/edit'
 import type { DialogForExportTypes } from '@/types/export'
@@ -39,6 +40,8 @@ export interface MainState {
   showMarkupPanel: boolean
   showImageLibPanel: boolean
   showAIPPTDialog: boolean | 'running'
+  aiModel: string
+  aiModels: AIModelOption[]
 }
 
 const nanoid = customAlphabet('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz')
@@ -46,6 +49,7 @@ export const databaseId = nanoid(10)
 
 export const useMainStore = defineStore('main', {
   state: (): MainState => ({
+    ...resolveAIModelConfig(),
     activeElementIdList: [], // 被选中的元素ID集合，包含 handleElementId
     handleElementId: '', // 正在操作的元素ID
     activeGroupElementId: '', // 组合元素成员中，被选中可独立操作的元素ID
@@ -217,6 +221,17 @@ export const useMainStore = defineStore('main', {
 
     setAIPPTDialogState(show: boolean | 'running') {
       this.showAIPPTDialog = show
+    },
+
+    initializeAIModelSettings(search = window.location.search) {
+      const { aiModels, aiModel } = resolveAIModelConfig(search)
+      this.aiModels = aiModels
+      this.aiModel = aiModels.some(option => option.value === this.aiModel) ? this.aiModel : aiModel
+    },
+
+    setAIModel(model: string) {
+      if (!this.aiModels.some(option => option.value === model)) return
+      this.aiModel = model
     },
   },
 })
