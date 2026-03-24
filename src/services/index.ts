@@ -47,7 +47,7 @@ export default {
     language,
     model,
   }: AIPPTOutlinePayload): Promise<any> {
-    return fetchRequest(`${SERVER_URL}/tools/aippt_outline`, {
+    return fetchRequest(`/api/tools/aippt_outline`, {
       method: 'POST',
       body: JSON.stringify({
         content,
@@ -64,7 +64,7 @@ export default {
     style,
     model,
   }: AIPPTPayload): Promise<any> {
-    return fetchRequest(`${SERVER_URL}/tools/aippt`, {
+    return fetchRequest(`/api/tools/aippt`, {
       method: 'POST',
       body: JSON.stringify({
         content,

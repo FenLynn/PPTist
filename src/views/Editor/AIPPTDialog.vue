@@ -59,6 +59,8 @@
             style="width: 190px;"
             v-model:value="model"
             :options="[
+              { label: 'Gemini 2.5 Flash', value: 'gemini-2.5-flash' },
+              { label: 'Gemini 2.5 Pro', value: 'gemini-2.5-pro' },
               { label: 'GLM-4.7-Flash', value: 'glm-4.7-flash' },
               { label: 'Doubao-Seed-1.6-Flash', value: 'doubao-seed-1.6-flash' },
             ]"
@@ -152,7 +154,7 @@ const loading = ref(false)
 const outlineCreating = ref(false)
 const overwrite = ref(true)
 const step = ref<'setup' | 'outline' | 'template'>('setup')
-const model = ref('glm-4.7-flash')
+const model = ref('gemini-2.5-flash')
 const outlineRef = useTemplateRef<HTMLElement>('outlineRef')
 const inputRef = useTemplateRef<InstanceType<typeof Input>>('inputRef')
 
@@ -191,6 +193,11 @@ const createOutline = async () => {
     language: language.value,
     model: model.value,
   })
+  if ('error' in stream) {
+    loading.value = false
+    outlineCreating.value = false
+    return message.error(String(stream.error || '大纲生成失败'))
+  }
   if (typeof stream === 'object' && stream.state === -1) {
     loading.value = false
     return message.error('该模型API的并发数过高，请更换其他模型重试')
@@ -237,6 +244,12 @@ const createPPT = async (template?: { slides: Slide[], theme: SlideTheme }) => {
     style: style.value,
     model: model.value,
   })
+  if ('error' in stream) {
+    loading.value = false
+    message.closeAll()
+    mainStore.setAIPPTDialogState(true)
+    return message.error(String(stream.error || '演示文稿生成失败'))
+  }
   if (typeof stream === 'object' && stream.state === -1) {
     loading.value = false
     message.closeAll()

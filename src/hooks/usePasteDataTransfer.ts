@@ -62,6 +62,10 @@ export default () => {
             importSpecificFile([unknownFile])
             isFile = true
           }
+          else if (ext === 'pptx') {
+            importPPTXFile([unknownFile])
+            isFile = true
+          }
         }
       }
     }

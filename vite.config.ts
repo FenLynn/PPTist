@@ -34,6 +34,14 @@ export default defineConfig({
     host: '127.0.0.1',
     port: 5173,
     proxy: {
+      '/api/pptist': {
+        target: 'http://127.0.0.1:8787',
+        changeOrigin: true,
+      },
+      '/api/tools': {
+        target: 'http://127.0.0.1:8787',
+        changeOrigin: true,
+      },
       '/api': {
         target: 'https://server.pptist.cn',
         changeOrigin: true,

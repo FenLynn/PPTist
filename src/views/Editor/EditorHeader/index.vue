@@ -113,7 +113,7 @@
 <script lang="ts" setup>
 import { nextTick, ref, useTemplateRef } from 'vue'
 import { storeToRefs } from 'pinia'
-import { useMainStore, useSlidesStore } from '@/store'
+import { useMainStore, useSlidesStore, useWorkspaceStore } from '@/store'
 import useScreening from '@/hooks/useScreening'
 import useImport from '@/hooks/useImport'
 import useSlideHandler from '@/hooks/useSlideHandler'
@@ -130,6 +130,7 @@ import Divider from '@/components/Divider.vue'
 
 const mainStore = useMainStore()
 const slidesStore = useSlidesStore()
+const workspaceStore = useWorkspaceStore()
 const { title } = storeToRefs(slidesStore)
 const { enterScreening, enterScreeningFromStart } = useScreening()
 const { importSpecificFile, importPPTXFile, importJSON, exporting } = useImport()
@@ -149,6 +150,7 @@ const startEditTitle = () => {
 
 const handleUpdateTitle = () => {
   slidesStore.setTitle(titleValue.value)
+  workspaceStore.syncActiveFromStores(true)
   editingTitle.value = false
 }
 

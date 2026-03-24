@@ -4,6 +4,7 @@ import { parse, type Shape, type Element, type ChartItem, type BaseElement } fro
 import { nanoid } from 'nanoid'
 import { useSlidesStore } from '@/store'
 import { decrypt } from '@/utils/crypto'
+import { parsePresentationFromObject, type PresentationDocumentData } from '@/utils/presentation'
 import { type ShapePoolItem, SHAPE_LIST, SHAPE_PATH_FORMULAS } from '@/configs/shapes'
 import useAddSlidesOrElements from '@/hooks/useAddSlidesOrElements'
 import useSlideHandler from '@/hooks/useSlideHandler'
@@ -154,6 +155,30 @@ export default () => {
   const { isEmptySlide } = useSlideHandler()
 
   const exporting = ref(false)
+
+  const readFileAsText = (file: File) => new Promise<string>((resolve, reject) => {
+    const reader = new FileReader()
+    reader.addEventListener('load', () => resolve(String(reader.result || '')))
+    reader.addEventListener('error', () => reject(new Error('读取文件失败')))
+    reader.readAsText(file)
+  })
+
+  const readFileAsArrayBuffer = (file: File) => new Promise<ArrayBuffer>((resolve, reject) => {
+    const reader = new FileReader()
+    reader.addEventListener('load', () => resolve(reader.result as ArrayBuffer))
+    reader.addEventListener('error', () => reject(new Error('读取文件失败')))
+    reader.readAsArrayBuffer(file)
+  })
+
+  const parseJSONFileToDocument = async (file: File) => {
+    const text = await readFileAsText(file)
+    return parsePresentationFromObject(JSON.parse(text))
+  }
+
+  const parseSpecificFileToDocument = async (file: File) => {
+    const text = await readFileAsText(file)
+    return parsePresentationFromObject(JSON.parse(decrypt(text)))
+  }
 
   // 导入JSON文件
   const importJSON = (files: FileList | File[], cover = false) => {
@@ -381,46 +406,34 @@ export default () => {
     return { x: minX, y: minY, globalRotation }
   }
 
-  // 导入PPTX文件
-  const importPPTXFile = (files: FileList | File[], options?: { cover?: boolean; fixedViewport?: boolean }) => {
+  const parsePPTXFileToDocument = async (file: File, options?: { fixedViewport?: boolean }): Promise<PresentationDocumentData> => {
     const defaultOptions = {
-      cover: false,
-      fixedViewport: false, 
+      fixedViewport: false,
     }
-    const { cover, fixedViewport } = { ...defaultOptions, ...options }
-
-    const file = files[0]
-    if (!file) return
-
-    exporting.value = true
+    const { fixedViewport } = { ...defaultOptions, ...options }
 
     const shapeList: ShapePoolItem[] = []
     for (const item of SHAPE_LIST) {
       shapeList.push(...item.children)
     }
-    
-    const reader = new FileReader()
-    reader.onload = async e => {
-      let json = null
-      try {
-        json = await parse(e.target!.result as ArrayBuffer)
-      }
-      catch {
-        exporting.value = false
-        message.error('无法正确读取 / 解析该文件')
-        return
-      }
 
-      let ratio = 96 / 72
-      const width = json.size.width
-      
-      if (fixedViewport) ratio = 1000 / width
-      else slidesStore.setViewportSize(width * ratio)
+    let json = null
+    try {
+      json = await parse(await readFileAsArrayBuffer(file))
+    }
+    catch {
+      throw new Error('无法正确读取 / 解析该文件')
+    }
 
-      slidesStore.setTheme({ themeColors: json.themeColors })
+    let ratio = 96 / 72
+    const width = json.size.width
+    const themeColors = json.themeColors || theme.value.themeColors
+    const viewportSize = fixedViewport ? 1000 : width * ratio
 
-      const slides: Slide[] = []
-      for (const item of json.slides) {
+    if (fixedViewport) ratio = 1000 / width
+
+    const slides: Slide[] = []
+    for (const item of json.slides) {
         const { type, value } = item.fill
         let background: SlideBackground
         if (type === 'image') {
@@ -1025,30 +1038,63 @@ export default () => {
             }
           }
         }
-        parseElements([...item.elements, ...item.layoutElements])
-        slides.push(slide)
-      }
+      parseElements([...item.elements, ...item.layoutElements])
+      slides.push(slide)
+    }
+
+    return parsePresentationFromObject({
+      title: file.name.replace(/\.(pptx|ppt)$/i, ''),
+      theme: { ...theme.value, themeColors },
+      slides,
+      slideIndex: 0,
+      viewportSize,
+      viewportRatio: width ? json.size.height / width : 0.5625,
+    })
+  }
+
+  // 导入PPTX文件
+  const importPPTXFile = (files: FileList | File[], options?: { cover?: boolean; fixedViewport?: boolean }) => {
+    const defaultOptions = {
+      cover: false,
+      fixedViewport: false,
+    }
+    const { cover, fixedViewport } = { ...defaultOptions, ...options }
+
+    const file = files[0]
+    if (!file) return
+
+    exporting.value = true
+
+    parsePPTXFileToDocument(file, { fixedViewport }).then(document => {
+      slidesStore.setViewportSize(document.viewportSize)
+      slidesStore.setViewportRatio(document.viewportRatio)
+      slidesStore.setTheme(document.theme)
 
       if (cover) {
         slidesStore.updateSlideIndex(0)
-        slidesStore.setSlides(slides)
+        slidesStore.setSlides(document.slides)
         addHistorySnapshot()
       }
       else if (isEmptySlide.value) {
-        slidesStore.setSlides(slides)
+        slidesStore.setSlides(document.slides)
         addHistorySnapshot()
       }
-      else addSlidesFromData(slides)
+      else addSlidesFromData(document.slides)
 
       exporting.value = false
-    }
-    reader.readAsArrayBuffer(file)
+    }).catch(error => {
+      exporting.value = false
+      message.error((error as Error).message || '无法正确读取 / 解析该文件')
+    })
   }
 
   return {
     importSpecificFile,
     importJSON,
     importPPTXFile,
+    parseJSONFileToDocument,
+    parseSpecificFileToDocument,
+    parsePPTXFileToDocument,
     exporting,
   }
 }

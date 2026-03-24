@@ -1,6 +1,7 @@
 <template>
   <div class="pptist-editor">
     <EditorHeader class="layout-header" />
+    <WorkspaceBar class="layout-workspace" />
     <div class="layout-content">
       <Thumbnails class="layout-content-left" />
       <div class="layout-content-center">
@@ -52,6 +53,7 @@ import useGlobalHotkey from '@/hooks/useGlobalHotkey'
 import usePasteEvent from '@/hooks/usePasteEvent'
 
 import EditorHeader from './EditorHeader/index.vue'
+import WorkspaceBar from './WorkspaceBar.vue'
 import Canvas from './Canvas/index.vue'
 import CanvasTool from './CanvasTool/index.vue'
 import Thumbnails from './Thumbnails/index.vue'
@@ -95,8 +97,11 @@ usePasteEvent()
 .layout-header {
   height: 40px;
 }
+.layout-workspace {
+  height: 40px;
+}
 .layout-content {
-  height: calc(100% - 40px);
+  height: calc(100% - 80px);
   display: flex;
 }
 .layout-content-left {
