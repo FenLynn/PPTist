@@ -56,22 +56,6 @@
         <div class="menu-item"><i-icon-park-outline:hamburger-button class="icon" /></div>
       </Popover>
 
-      <div class="title">
-        <Input 
-          class="title-input" 
-          ref="titleInputRef"
-          v-model:value="titleValue" 
-          @blur="handleUpdateTitle()" 
-          v-if="editingTitle" 
-        ></Input>
-        <div 
-          class="title-text"
-          @click="startEditTitle()"
-          :title="title"
-          v-else
-        >{{ title }}</div>
-      </div>
-
       <WorkspaceTabs class="workspace-tabs" />
     </div>
 
@@ -113,8 +97,7 @@
 </template>
 
 <script lang="ts" setup>
-import { nextTick, ref, useTemplateRef } from 'vue'
-import { storeToRefs } from 'pinia'
+import { ref } from 'vue'
 import { useMainStore, useSlidesStore, useWorkspaceStore } from '@/store'
 import useScreening from '@/hooks/useScreening'
 import useImport from '@/hooks/useImport'
@@ -125,37 +108,20 @@ import HotkeyDoc from './HotkeyDoc.vue'
 import FileInput from '@/components/FileInput.vue'
 import FullscreenSpin from '@/components/FullscreenSpin.vue'
 import Drawer from '@/components/Drawer.vue'
-import Input from '@/components/Input.vue'
 import Popover from '@/components/Popover.vue'
 import PopoverMenuItem from '@/components/PopoverMenuItem.vue'
 import Divider from '@/components/Divider.vue'
 import WorkspaceTabs from '../WorkspaceTabs.vue'
 
 const mainStore = useMainStore()
-const slidesStore = useSlidesStore()
-const workspaceStore = useWorkspaceStore()
-const { title } = storeToRefs(slidesStore)
+useSlidesStore()
+useWorkspaceStore()
 const { enterScreening, enterScreeningFromStart } = useScreening()
 const { importSpecificFile, importPPTXFile, importJSON, exporting } = useImport()
 const { resetSlides } = useSlideHandler()
 
 const mainMenuVisible = ref(false)
 const hotkeyDrawerVisible = ref(false)
-const editingTitle = ref(false)
-const titleValue = ref('')
-const titleInputRef = useTemplateRef<InstanceType<typeof Input>>('titleInputRef')
-
-const startEditTitle = () => {
-  titleValue.value = title.value
-  editingTitle.value = true
-  nextTick(() => titleInputRef.value?.focus())
-}
-
-const handleUpdateTitle = () => {
-  slidesStore.setTitle(titleValue.value)
-  workspaceStore.syncActiveFromStores(true)
-  editingTitle.value = false
-}
 
 const goLink = (url: string) => {
   window.open(url)
@@ -193,6 +159,7 @@ const openAIPPTDialog = () => {
 .left {
   min-width: 0;
   flex: 1;
+  gap: 8px;
 }
 
 .workspace-tabs {

@@ -4,45 +4,90 @@
       <div class="action primary" @click="createTab">新建</div>
       <FileInput class="action" accept=".ppt,.pptx,.pptist,.json" @change="openLocalFiles">打开本地</FileInput>
       <div class="action" @click="saveLocalFile">保存本地</div>
-      <div class="action" @click="openCloudManager">云端</div>
-      <div class="action" @click="saveCloudFileAction">保存云端</div>
+      <div class="action" @click="saveCacheSnapshot">保存缓存</div>
+      <div class="action" @click="openCloudManager('load')">云端</div>
+      <div class="action" @click="openCloudManager('save')">保存云端</div>
       <div class="action" :class="{ disabled: isPrimaryActive }" @click="setPrimaryDoc">设为主稿</div>
       <div class="action" :class="{ disabled: !canSendElements }" @click="sendElementsToPrimary">送对象</div>
       <div class="action" :class="{ disabled: !canSendSlides }" @click="sendSlidesToPrimary">送页面</div>
       <div class="action" :class="{ disabled: !primaryDoc || isPrimaryActive }" @click="goPrimaryDoc">去主稿</div>
+      <div class="doc-title-box">
+        <span class="doc-title-label">当前稿件</span>
+        <input
+          v-model="titleInput"
+          class="doc-title-input"
+          type="text"
+          maxlength="120"
+          @blur="commitTitleUpdate"
+          @keydown.enter.prevent="commitTitleUpdate"
+        />
+      </div>
     </div>
 
     <Modal :visible="cloudVisible" :width="680" @closed="closeCloudManager">
       <div class="cloud-modal">
         <div class="cloud-toolbar">
-          <div class="cloud-title">云端演示文稿</div>
+          <div class="cloud-title-wrap">
+            <div class="cloud-title">云端演示文稿</div>
+            <div class="cloud-subtitle">{{ cloudMode === 'save' ? '上方输入文件名，下方查看列表并按需覆盖。' : '上方可输入目标文件名，下方单击选中，双击直接打开。' }}</div>
+          </div>
           <div class="cloud-actions">
             <div class="toolbar-btn" @click="refreshCloudFiles">刷新</div>
             <div class="toolbar-btn primary" @click="saveCloudFileAction">保存当前</div>
           </div>
         </div>
 
+        <div class="cloud-form">
+          <div class="cloud-label">文件名</div>
+          <input
+            v-model="cloudFilename"
+            class="cloud-input"
+            type="text"
+            maxlength="180"
+            placeholder="例如：项目汇报.pptist"
+            @keydown.enter.prevent="cloudMode === 'save' ? saveCloudFileAction() : loadCloudDocument()"
+          />
+        </div>
+
+        <div class="cloud-meta">
+          <span>单击选中文件，双击直接打开。</span>
+          <span v-if="cloudFiles.length">共 {{ cloudFiles.length }} 个云端文件</span>
+        </div>
+
         <div class="cloud-list" v-if="cloudFiles.length">
-          <div class="cloud-item" v-for="filename in cloudFiles" :key="filename">
-            <div class="name">{{ filename }}</div>
-            <div class="item-actions">
-              <div class="item-btn" @click="loadCloudDocument(filename)">打开</div>
-              <div class="item-btn danger" @click="removeCloudDocument(filename)">删除</div>
-            </div>
-          </div>
+          <button
+            v-for="filename in cloudFiles"
+            :key="filename"
+            class="cloud-item"
+            :class="{ active: cloudSelectedFile === filename }"
+            type="button"
+            @click="selectCloudFile(filename)"
+            @dblclick="loadCloudDocument(filename)"
+          >
+            <span class="name">{{ filename }}</span>
+            <span class="cloud-tag" v-if="filename === cloudCurrentFile">当前</span>
+          </button>
         </div>
         <div class="cloud-empty" v-else-if="!loadingCloud">云端还没有文件</div>
         <div class="cloud-empty" v-else>正在加载...</div>
+
+        <div class="cloud-footer">
+          <div class="toolbar-btn" @click="closeCloudManager">关闭</div>
+          <div class="toolbar-btn danger" :class="{ disabled: !cloudSelectedFile }" @click="removeCloudDocument(cloudSelectedFile)">删除选中</div>
+          <div class="toolbar-btn" :class="{ disabled: !resolveCloudFilename() }" @click="loadCloudDocument()">打开选中</div>
+          <div class="toolbar-btn primary" :class="{ disabled: !resolveCloudFilename() }" @click="saveCloudFileAction">保存到云端</div>
+        </div>
       </div>
     </Modal>
   </div>
 </template>
 
 <script lang="ts" setup>
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { saveAs } from 'file-saver'
 import { useMainStore, useSlidesStore, useWorkspaceStore } from '@/store'
+import { LOCALSTORAGE_KEY_LIGHT_CACHE } from '@/configs/storage'
 import { deleteCloudFile, listCloudFiles, loadCloudFile, saveCloudFile } from '@/services/pptist'
 import message from '@/utils/message'
 import {
@@ -63,18 +108,53 @@ const { parseJSONFileToDocument, parseSpecificFileToDocument, parsePPTXFileToDoc
 const cloudVisible = ref(false)
 const loadingCloud = ref(false)
 const cloudFiles = ref<string[]>([])
+const cloudMode = ref<'load' | 'save'>('load')
+const cloudFilename = ref('')
+const cloudSelectedFile = ref('')
+const titleInput = ref('')
 
 const isPrimaryActive = computed(() => !!activeDoc.value && activeDoc.value.id === primaryDocId.value)
 const canSendElements = computed(() => !!primaryDoc.value && !isPrimaryActive.value && mainStore.activeElementIdList.length > 0)
 const canSendSlides = computed(() => !!primaryDoc.value && !isPrimaryActive.value)
 
+const normalizeCloudFilename = (filename: string) => {
+  const safeName = String(filename || '').trim() || `${activeDoc.value?.title || '未命名演示文稿'}.pptist`
+  return safeName.endsWith('.pptist') ? safeName : `${safeName}.pptist`
+}
+
 const currentFilename = computed(() => {
   const doc = activeDoc.value
-  return doc?.filename || `${doc?.title || '未命名演示文稿'}.pptist`
+  return normalizeCloudFilename(doc?.filename || `${doc?.title || '未命名演示文稿'}.pptist`)
 })
+
+const cloudCurrentFile = computed(() => {
+  const doc = activeDoc.value
+  if (!doc?.filename) return ''
+  return normalizeCloudFilename(doc.filename)
+})
+
+watch(activeDoc, doc => {
+  titleInput.value = doc?.title || '未命名演示文稿'
+  cloudFilename.value = cloudCurrentFile.value || currentFilename.value
+  if (cloudCurrentFile.value && cloudFiles.value.includes(cloudCurrentFile.value)) {
+    cloudSelectedFile.value = cloudCurrentFile.value
+  }
+}, { immediate: true })
+
+const resolveCloudFilename = () => {
+  const filename = String(cloudFilename.value || cloudSelectedFile.value || '').trim()
+  return filename ? normalizeCloudFilename(filename) : ''
+}
 
 const createTab = () => {
   workspaceStore.addEmptyDocument()
+}
+
+const commitTitleUpdate = () => {
+  const nextTitle = String(titleInput.value || '').trim() || '未命名演示文稿'
+  titleInput.value = nextTitle
+  slidesStore.setTitle(nextTitle)
+  workspaceStore.syncActiveFromStores(true)
 }
 
 const setPrimaryDoc = () => {
@@ -151,6 +231,23 @@ const openLocalFiles = async (files: FileList) => {
   }
 }
 
+const saveCacheSnapshot = () => {
+  const doc = activeDoc.value
+  if (!doc) return
+  workspaceStore.syncActiveFromStores(false)
+  try {
+    localStorage.setItem(LOCALSTORAGE_KEY_LIGHT_CACHE, JSON.stringify({
+      filename: currentFilename.value,
+      title: doc.title,
+      savedAt: new Date().toISOString(),
+      content: serializePresentationAsPptist(workspaceStore.activeDoc!.data),
+    }))
+    message.success('已写入本地缓存')
+  } catch (error) {
+    message.error((error as Error).message || '写入本地缓存失败')
+  }
+}
+
 const saveLocalFile = () => {
   const doc = activeDoc.value
   if (!doc) return
@@ -171,7 +268,13 @@ const saveLocalFile = () => {
 const refreshCloudFiles = async () => {
   loadingCloud.value = true
   try {
-    cloudFiles.value = await listCloudFiles()
+    cloudFiles.value = (await listCloudFiles()).slice().sort((left, right) => left.localeCompare(right, 'zh-CN'))
+    if (cloudSelectedFile.value && !cloudFiles.value.includes(cloudSelectedFile.value)) {
+      cloudSelectedFile.value = ''
+    }
+    if (!cloudSelectedFile.value && cloudCurrentFile.value && cloudFiles.value.includes(cloudCurrentFile.value)) {
+      cloudSelectedFile.value = cloudCurrentFile.value
+    }
   } catch (error) {
     message.error((error as Error).message || '读取云端文件列表失败')
   } finally {
@@ -179,7 +282,9 @@ const refreshCloudFiles = async () => {
   }
 }
 
-const openCloudManager = async () => {
+const openCloudManager = async (mode: 'load' | 'save' = 'load') => {
+  cloudMode.value = mode
+  cloudFilename.value = cloudCurrentFile.value || currentFilename.value
   cloudVisible.value = true
   await refreshCloudFiles()
 }
@@ -188,16 +293,25 @@ const closeCloudManager = () => {
   cloudVisible.value = false
 }
 
-const loadCloudDocument = async (filename: string) => {
+const selectCloudFile = (filename: string) => {
+  cloudSelectedFile.value = filename
+  cloudFilename.value = filename
+}
+
+const loadCloudDocument = async (filename?: string) => {
   try {
-    const result = await loadCloudFile(filename)
+    const target = String(filename || resolveCloudFilename() || '').trim()
+    if (!target) return
+    const result = await loadCloudFile(target)
     const data = parsePresentationFromPptist(result.content)
     workspaceStore.openDocument(data, {
       storage: 'cloud',
-      filename,
+      filename: target,
       dirty: false,
       lastSavedAt: new Date().toISOString(),
     })
+    cloudSelectedFile.value = target
+    cloudFilename.value = target
     cloudVisible.value = false
     message.success('已从云端打开')
   } catch (error) {
@@ -208,15 +322,14 @@ const loadCloudDocument = async (filename: string) => {
 const saveCloudFileAction = async () => {
   const doc = activeDoc.value
   if (!doc) return
-  workspaceStore.syncActiveFromStores(false)
-  let filename = doc.storage === 'cloud' && doc.filename ? doc.filename : currentFilename.value
-  if (!filename.endsWith('.pptist')) filename = `${filename}.pptist`
-
-  if (doc.storage !== 'cloud') {
-    const input = window.prompt('请输入云端文件名', filename)
-    if (!input) return
-    filename = input.endsWith('.pptist') ? input : `${input}.pptist`
+  if (!cloudVisible.value) {
+    await openCloudManager('save')
+    return
   }
+
+  workspaceStore.syncActiveFromStores(false)
+  const filename = resolveCloudFilename()
+  if (!filename) return
 
   try {
     const content = serializePresentationAsPptist(workspaceStore.activeDoc!.data)
@@ -224,7 +337,7 @@ const saveCloudFileAction = async () => {
     try {
       await saveCloudFile({
         filename,
-        overwrite: doc.storage === 'cloud',
+        overwrite: doc.storage === 'cloud' && filename === cloudCurrentFile.value,
         content,
       })
     } catch (error) {
@@ -244,17 +357,23 @@ const saveCloudFileAction = async () => {
       dirty: false,
       lastSavedAt: new Date().toISOString(),
     })
-    if (cloudVisible.value) await refreshCloudFiles()
+    cloudSelectedFile.value = filename
+    cloudFilename.value = filename
+    await refreshCloudFiles()
     message.success('已保存到云端')
   } catch (error) {
     message.error((error as Error).message || '保存云端文件失败')
   }
 }
 
-const removeCloudDocument = async (filename: string) => {
-  if (!window.confirm(`确认删除 ${filename} 吗？`)) return
+const removeCloudDocument = async (filename?: string) => {
+  const target = String(filename || cloudSelectedFile.value || '').trim()
+  if (!target) return
+  if (!window.confirm(`确认删除 ${target} 吗？`)) return
   try {
-    await deleteCloudFile(filename)
+    await deleteCloudFile(target)
+    if (cloudSelectedFile.value === target) cloudSelectedFile.value = ''
+    if (cloudFilename.value === target) cloudFilename.value = cloudCurrentFile.value || currentFilename.value
     await refreshCloudFiles()
     message.success('已删除云端文件')
   } catch (error) {
@@ -280,11 +399,11 @@ const removeCloudDocument = async (filename: string) => {
   gap: 6px;
   flex-wrap: nowrap;
   min-width: 0;
+  width: 100%;
 }
 
 .action,
-.toolbar-btn,
-.item-btn {
+.toolbar-btn {
   height: 28px;
   padding: 0 10px;
   border-radius: $borderRadius;
@@ -316,15 +435,55 @@ const removeCloudDocument = async (filename: string) => {
   }
 }
 
+.doc-title-box {
+  margin-left: 6px;
+  width: 260px;
+  min-width: 0;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 10px;
+  border: 1px solid #f0b429;
+  border-radius: 6px;
+  background: linear-gradient(180deg, #fffaf0 0%, #fff5d9 100%);
+  box-shadow: inset 0 0 0 1px rgba(240, 180, 41, 0.15);
+}
+
+.doc-title-label {
+  flex-shrink: 0;
+  font-size: 12px;
+  color: #8a6116;
+  font-weight: 600;
+}
+
+.doc-title-input {
+  min-width: 0;
+  flex: 1;
+  height: 20px;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: #6b4f13;
+  font-size: 12px;
+}
+
 .cloud-modal {
   padding: 8px 0;
 }
 
 .cloud-toolbar {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
+  gap: 12px;
   margin-bottom: 12px;
+}
+
+.cloud-title-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 
 .cloud-title {
@@ -332,27 +491,83 @@ const removeCloudDocument = async (filename: string) => {
   font-weight: 600;
 }
 
+.cloud-subtitle {
+  color: #667085;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
 .cloud-actions,
-.item-actions {
+.cloud-footer {
   display: flex;
   gap: 8px;
+}
+
+.cloud-form {
+  display: grid;
+  grid-template-columns: 52px minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.cloud-label {
+  color: #667085;
+  font-size: 12px;
+}
+
+.cloud-input {
+  height: 34px;
+  padding: 0 10px;
+  border: 1px solid $borderColor;
+  border-radius: 6px;
+  outline: none;
+
+  &:focus {
+    border-color: #2d6cdf;
+    box-shadow: 0 0 0 2px rgba(45, 108, 223, 0.12);
+  }
+}
+
+.cloud-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+  color: #667085;
+  font-size: 12px;
 }
 
 .cloud-list {
   display: flex;
   flex-direction: column;
   gap: 8px;
+  min-height: 280px;
   max-height: 360px;
   overflow: auto;
+  padding: 4px;
+  border: 1px solid $borderColor;
+  border-radius: 8px;
+  background: #fafafa;
 }
 
 .cloud-item {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 10px;
   padding: 10px 12px;
   border: 1px solid $borderColor;
   border-radius: $borderRadius;
+  background: #fff;
+  cursor: pointer;
+  text-align: left;
+
+  &.active {
+    border-color: #2d6cdf;
+    background: #eef4ff;
+  }
 }
 
 .name {
@@ -362,9 +577,25 @@ const removeCloudDocument = async (filename: string) => {
   white-space: nowrap;
 }
 
+.cloud-tag {
+  flex-shrink: 0;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(45, 108, 223, 0.12);
+  color: #2d6cdf;
+  font-size: 12px;
+}
+
 .cloud-empty {
-  padding: 24px 0;
-  text-align: center;
+  min-height: 280px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   color: #777;
+}
+
+.cloud-footer {
+  justify-content: flex-end;
+  margin-top: 12px;
 }
 </style>

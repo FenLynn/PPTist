@@ -12,9 +12,10 @@ import { onMounted, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { nanoid } from 'nanoid'
 import { useScreenStore, useMainStore, useSnapshotStore, useSlidesStore, useWorkspaceStore } from '@/store'
-import { LOCALSTORAGE_KEY_DISCARDED_DB } from '@/configs/storage'
+import { LOCALSTORAGE_KEY_DISCARDED_DB, LOCALSTORAGE_KEY_LIGHT_CACHE } from '@/configs/storage'
 import { deleteDiscardedDB } from '@/utils/database'
 import { isPC } from '@/utils/common'
+import { parsePresentationFromPptist } from '@/utils/presentation'
 import api from '@/services'
 
 import Editor from './views/Editor/index.vue'
@@ -35,6 +36,36 @@ const { screening } = storeToRefs(screenStore)
 
 const isAudienceMode = new URLSearchParams(window.location.search).get('mode') === 'audience'
 
+function restoreLightCache() {
+  const raw = localStorage.getItem(LOCALSTORAGE_KEY_LIGHT_CACHE)
+  if (!raw) return false
+
+  try {
+    const payload = JSON.parse(raw) as { content?: string; filename?: string; savedAt?: string }
+    if (!payload?.content) return false
+
+    const data = parsePresentationFromPptist(payload.content)
+    slidesStore.setTheme(data.theme)
+    slidesStore.setSlides(data.slides)
+    slidesStore.setTitle(data.title)
+    slidesStore.setViewportSize(data.viewportSize)
+    slidesStore.setViewportRatio(data.viewportRatio)
+    slidesStore.updateSlideIndex(data.slideIndex)
+    workspaceStore.initializeFromCurrentStores()
+    workspaceStore.updateActiveMeta({
+      storage: 'memory',
+      filename: payload.filename || `${data.title}.pptist`,
+      dirty: false,
+      lastSavedAt: payload.savedAt || '',
+    })
+    return true
+  } catch (error) {
+    console.warn('Failed to restore PPTist light cache:', error)
+    localStorage.removeItem(LOCALSTORAGE_KEY_LIGHT_CACHE)
+    return false
+  }
+}
+
 if (import.meta.env.MODE !== 'development') {
   window.onbeforeunload = () => false
 }
@@ -51,9 +82,12 @@ onMounted(async () => {
     screenStore.setScreening(true)
   }
   else {
-    const slides = await api.getMockData('slides')
-    slidesStore.setSlides(slides)
-    workspaceStore.initializeFromCurrentStores()
+    const restored = restoreLightCache()
+    if (!restored) {
+      const slides = await api.getMockData('slides')
+      slidesStore.setSlides(slides)
+      workspaceStore.initializeFromCurrentStores()
+    }
 
     await deleteDiscardedDB()
     snapshotStore.initSnapshotDatabase()
