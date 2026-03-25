@@ -41,9 +41,10 @@
 </template>
 
 <script lang="ts" setup>
-import { computed, watch } from 'vue'
+import { computed } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useMainStore } from '@/store'
+import useElementStylePainter from '@/hooks/useElementStylePainter'
 import useShapeFormatPainter from '@/hooks/useShapeFormatPainter'
 import useTextFormatPainter from '@/hooks/useTextFormatPainter'
 
@@ -52,12 +53,13 @@ import ButtonGroup from '@/components/ButtonGroup.vue'
 import CheckboxButton from '@/components/CheckboxButton.vue'
 import Popover from '@/components/Popover.vue'
 
-type PainterMode = 'text' | 'shape'
+type PainterMode = 'text' | 'style' | 'shape'
 
 const mainStore = useMainStore()
-const { handleElement, textFormatPainter, shapeFormatPainter } = storeToRefs(mainStore)
+const { handleElement, textFormatPainter, shapeFormatPainter, elementStylePainter } = storeToRefs(mainStore)
 const { toggleTextFormatPainter } = useTextFormatPainter()
 const { toggleShapeFormatPainter } = useShapeFormatPainter()
+const { toggleElementStylePainter } = useElementStylePainter()
 
 const textSupported = computed(() => {
   const element = handleElement.value
@@ -69,26 +71,35 @@ const shapeSupported = computed(() => {
   return !!element && element.type === 'shape'
 })
 
+const elementStyleSupported = computed(() => {
+  const element = handleElement.value
+  return !!element && (element.type === 'text' || element.type === 'image')
+})
+
 const availableModes = computed(() => {
   const result: { label: string; value: PainterMode }[] = []
   if (textSupported.value) result.push({ label: '文本格式刷', value: 'text' })
+  if (elementStyleSupported.value) result.push({ label: '元素样式刷', value: 'style' })
   if (shapeSupported.value) result.push({ label: '形状格式刷', value: 'shape' })
   return result
 })
 
 const preferredMode = computed<PainterMode | null>(() => {
+  if (elementStyleSupported.value) return 'style'
   if (shapeSupported.value) return 'shape'
   if (textSupported.value) return 'text'
   return null
 })
 
 const activeMode = computed<PainterMode | ''>(() => {
+  if (elementStylePainter.value) return 'style'
   if (shapeFormatPainter.value) return 'shape'
   if (textFormatPainter.value) return 'text'
   return ''
 })
 
 const activeKeep = computed(() => {
+  if (elementStylePainter.value) return !!elementStylePainter.value.keep
   if (shapeFormatPainter.value) return !!shapeFormatPainter.value.keep
   if (textFormatPainter.value) return !!textFormatPainter.value.keep
   return false
@@ -109,18 +120,29 @@ const activeStatus = computed(() => {
 const clearPainters = () => {
   mainStore.setTextFormatPainter(null)
   mainStore.setShapeFormatPainter(null)
+  mainStore.setElementStylePainter(null)
 }
 
 const toggleMode = (mode: PainterMode, keep = false) => {
   if (mode === 'text') {
     if (!textSupported.value) return
     if (shapeFormatPainter.value) mainStore.setShapeFormatPainter(null)
+    if (elementStylePainter.value) mainStore.setElementStylePainter(null)
     toggleTextFormatPainter(keep)
+    return
+  }
+
+  if (mode === 'style') {
+    if (!elementStyleSupported.value) return
+    if (shapeFormatPainter.value) mainStore.setShapeFormatPainter(null)
+    if (textFormatPainter.value) mainStore.setTextFormatPainter(null)
+    toggleElementStylePainter(keep)
     return
   }
 
   if (!shapeSupported.value) return
   if (textFormatPainter.value) mainStore.setTextFormatPainter(null)
+  if (elementStylePainter.value) mainStore.setElementStylePainter(null)
   toggleShapeFormatPainter(keep)
 }
 
@@ -129,10 +151,6 @@ const togglePreferredMode = (keep = false) => {
   toggleMode(preferredMode.value, keep)
 }
 
-watch([textSupported, shapeSupported], () => {
-  if (!textSupported.value && textFormatPainter.value) mainStore.setTextFormatPainter(null)
-  if (!shapeSupported.value && shapeFormatPainter.value) mainStore.setShapeFormatPainter(null)
-})
 </script>
 
 <style lang="scss" scoped>

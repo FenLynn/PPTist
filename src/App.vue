@@ -8,7 +8,7 @@
 </template>
 
 <script lang="ts" setup>
-import { onMounted, watch } from 'vue'
+import { onMounted, onUnmounted, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { nanoid } from 'nanoid'
 import { useScreenStore, useMainStore, useSnapshotStore, useSlidesStore, useWorkspaceStore } from '@/store'
@@ -35,6 +35,56 @@ const { slides } = storeToRefs(slidesStore)
 const { screening } = storeToRefs(screenStore)
 
 const isAudienceMode = new URLSearchParams(window.location.search).get('mode') === 'audience'
+const hostBridge = new URLSearchParams(window.location.search).get('hostBridge')
+
+function normalizeBridgeModels(raw: unknown) {
+  if (!Array.isArray(raw)) return []
+  return raw
+    .map(item => {
+      const value = String((item as { id?: string }).id || '').trim()
+      if (!value || value.startsWith('@cf/')) return null
+      const name = String((item as { name?: string }).name || '').trim() || value
+      const provider = String((item as { provider?: string }).provider || '').trim()
+      return {
+        value,
+        label: provider ? `${name} (${provider})` : name,
+      }
+    })
+    .filter((item): item is { value: string; label: string } => !!item)
+}
+
+function handleBridgeMessage(event: MessageEvent) {
+  if (hostBridge !== 'dashboard') return
+  const data = event.data as {
+    channel?: string
+    type?: string
+    payload?: {
+      aiModels?: unknown
+      aiModel?: string
+      outline?: string
+      title?: string
+      source?: string
+    }
+  }
+  if (data?.channel !== 'sci-pptist-bridge') return
+
+  if (data.type === 'dashboard:ai-models') {
+    const models = normalizeBridgeModels(data.payload?.aiModels)
+    if (models.length) mainStore.applyAIModelSettings(models, String(data.payload?.aiModel || ''))
+    return
+  }
+
+  if (data.type === 'dashboard:outline-import') {
+    const outline = String(data.payload?.outline || '').trim()
+    if (!outline) return
+    mainStore.setAIPPTBridgePayload({
+      outline,
+      title: String(data.payload?.title || '').trim(),
+      source: String(data.payload?.source || 'dashboard'),
+    })
+    mainStore.setAIPPTDialogState(true)
+  }
+}
 
 function restoreLightCache() {
   const raw = localStorage.getItem(LOCALSTORAGE_KEY_LIGHT_CACHE)
@@ -71,6 +121,7 @@ if (import.meta.env.MODE !== 'development') {
 }
 
 onMounted(async () => {
+  window.addEventListener('message', handleBridgeMessage)
   mainStore.initializeAIModelSettings(window.location.search)
 
   if (isAudienceMode) {
@@ -92,6 +143,10 @@ onMounted(async () => {
     await deleteDiscardedDB()
     snapshotStore.initSnapshotDatabase()
   }
+})
+
+onUnmounted(() => {
+  window.removeEventListener('message', handleBridgeMessage)
 })
 
 watch(() => slidesStore.$state, () => {

@@ -2,11 +2,17 @@ import { customAlphabet } from 'nanoid'
 import { defineStore } from 'pinia'
 import { resolveAIModelConfig, type AIModelOption } from '@/configs/ai'
 import { ToolbarStates } from '@/types/toolbar'
-import type { CreatingElement, ShapeFormatPainter, TextFormatPainter } from '@/types/edit'
+import type { CreatingElement, ElementStylePainter, ShapeFormatPainter, TextFormatPainter } from '@/types/edit'
 import type { DialogForExportTypes } from '@/types/export'
 import { type TextAttrs, defaultRichTextAttrs } from '@/utils/prosemirror/utils'
 
 import { useSlidesStore } from './slides'
+
+export interface AIPPTBridgePayload {
+  outline: string
+  title?: string
+  source?: string
+}
 
 export interface MainState {
   activeElementIdList: string[]
@@ -33,6 +39,7 @@ export interface MainState {
   databaseId: string
   textFormatPainter: TextFormatPainter | null
   shapeFormatPainter: ShapeFormatPainter | null
+  elementStylePainter: ElementStylePainter | null
   showSelectPanel: boolean
   showSearchPanel: boolean
   showNotesPanel: boolean
@@ -42,6 +49,7 @@ export interface MainState {
   showAIPPTDialog: boolean | 'running'
   aiModel: string
   aiModels: AIModelOption[]
+  aipptBridgePayload: AIPPTBridgePayload | null
 }
 
 const nanoid = customAlphabet('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz')
@@ -74,6 +82,7 @@ export const useMainStore = defineStore('main', {
     databaseId, // 标识当前应用的indexedDB数据库ID
     textFormatPainter: null, // 文字格式刷
     shapeFormatPainter: null, // 形状格式刷
+    elementStylePainter: null, // 元素样式格式刷
     showSelectPanel: false, // 打开选择面板
     showSearchPanel: false, // 打开查找替换面板
     showNotesPanel: false, // 打开批注面板
@@ -81,6 +90,7 @@ export const useMainStore = defineStore('main', {
     showMarkupPanel: false, // 打开类型标注面板
     showImageLibPanel: false, // 打开图片库面板
     showAIPPTDialog: false, // 打开AIPPT创建窗口
+    aipptBridgePayload: null,
   }),
 
   getters: {
@@ -195,6 +205,10 @@ export const useMainStore = defineStore('main', {
       this.shapeFormatPainter = shapeFormatPainter
     },
 
+    setElementStylePainter(elementStylePainter: ElementStylePainter | null) {
+      this.elementStylePainter = elementStylePainter
+    },
+
     setSelectPanelState(show: boolean) {
       this.showSelectPanel = show
     },
@@ -223,10 +237,20 @@ export const useMainStore = defineStore('main', {
       this.showAIPPTDialog = show
     },
 
+    setAIPPTBridgePayload(payload: AIPPTBridgePayload | null) {
+      this.aipptBridgePayload = payload
+    },
+
     initializeAIModelSettings(search = window.location.search) {
       const { aiModels, aiModel } = resolveAIModelConfig(search)
       this.aiModels = aiModels
       this.aiModel = aiModels.some(option => option.value === this.aiModel) ? this.aiModel : aiModel
+    },
+
+    applyAIModelSettings(aiModels: AIModelOption[], aiModel = '') {
+      if (!Array.isArray(aiModels) || !aiModels.length) return
+      this.aiModels = aiModels
+      this.aiModel = aiModels.some(option => option.value === aiModel) ? aiModel : aiModels[0].value
     },
 
     setAIModel(model: string) {

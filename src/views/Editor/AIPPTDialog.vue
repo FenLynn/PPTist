@@ -108,8 +108,12 @@
         >
           <img :src="template.cover" :alt="template.name">
           <div class="template-meta">
-            <div class="template-name">{{ template.name }}</div>
+            <div class="template-name">
+              <span>{{ template.name }}</span>
+              <span class="default-tag" v-if="template.id === designAssets.activeTemplateId">默认</span>
+            </div>
             <div class="template-origin">{{ template.origin || '预置模板' }}</div>
+            <div class="template-origin" v-if="template.slideCount">{{ template.slideCount }} 页模板</div>
           </div>
         </div>
       </div>
@@ -124,7 +128,7 @@
 </template>
 
 <script lang="ts" setup>
-import { computed, ref, onMounted, useTemplateRef } from 'vue'
+import { computed, ref, onMounted, useTemplateRef, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { jsonrepair } from 'jsonrepair'
 import api from '@/services'
@@ -146,7 +150,7 @@ import FileInput from '@/components/FileInput.vue'
 const mainStore = useMainStore()
 const slidesStore = useSlidesStore()
 const { templates, designAssets } = storeToRefs(slidesStore)
-const { aiModel, aiModels } = storeToRefs(mainStore)
+const { aiModel, aiModels, aipptBridgePayload } = storeToRefs(mainStore)
 
 const { resetSlides, isEmptySlide } = useSlideHandler()
 const { AIPPT, presetImgPool, getMdContent } = useAIPPT()
@@ -156,7 +160,7 @@ const style = ref('通用')
 const img = ref('')
 const keyword = ref('')
 const outline = ref('')
-const selectedTemplate = ref('template_1')
+const selectedTemplate = ref(designAssets.value.activeTemplateId || 'template_1')
 const loading = ref(false)
 const outlineCreating = ref(false)
 const overwrite = ref(true)
@@ -183,8 +187,27 @@ const availableTemplates = computed(() => {
     cover: item.cover,
     name: item.name,
     origin: item.origin || '当前工作区',
+    slideCount: item.slides.length,
   }))
-  return [...customTemplates, ...templates.value]
+  return [...customTemplates, ...templates.value.map(item => ({ ...item, slideCount: 0 }))]
+})
+
+watch(() => designAssets.value.activeTemplateId, templateId => {
+  if (!templateId) return
+  if (!availableTemplates.value.some(item => item.id === selectedTemplate.value)) {
+    selectedTemplate.value = templateId
+  }
+})
+
+watch(aipptBridgePayload, payload => {
+  if (!payload?.outline) return
+  keyword.value = payload.title || keyword.value || '笔记大纲'
+  outline.value = normalizeOutlineMarkdown(payload.outline)
+  outlineCreating.value = false
+  step.value = 'outline'
+  if (designAssets.value.activeTemplateId) selectedTemplate.value = designAssets.value.activeTemplateId
+  else if (availableTemplates.value.length) selectedTemplate.value = availableTemplates.value[0].id
+  mainStore.setAIPPTBridgePayload(null)
 })
 
 onMounted(() => {

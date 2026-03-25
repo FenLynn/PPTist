@@ -88,7 +88,7 @@ const props = defineProps<{
 
 const mainStore = useMainStore()
 const slidesStore = useSlidesStore()
-const { clipingImageElementId } = storeToRefs(mainStore)
+const { clipingImageElementId, elementStylePainter } = storeToRefs(mainStore)
 
 const isCliping = computed(() => clipingImageElementId.value === props.elementInfo.id)
 
@@ -111,6 +111,26 @@ const handleSelectElement = (e: MouseEvent | TouchEvent) => {
   if (props.elementInfo.lock) return
   e.stopPropagation()
   props.selectElement(e, props.elementInfo)
+
+  const painter = elementStylePainter.value
+  if (!painter || painter.targetType !== 'image' || painter.sourceElementId === props.elementInfo.id) return
+
+  slidesStore.updateElement({
+    id: props.elementInfo.id,
+    props: {
+      width: painter.width ?? props.elementInfo.width,
+      height: painter.height ?? props.elementInfo.height,
+      outline: painter.outline,
+      shadow: painter.shadow,
+      filters: painter.filters,
+      radius: painter.radius,
+      flipH: painter.flipH,
+      flipV: painter.flipV,
+      colorMask: painter.colorMask,
+    },
+  })
+  addHistorySnapshot()
+  if (!painter.keep) mainStore.setElementStylePainter(null)
 }
 
 const handleClip = (data: ImageClipedEmitData | null) => {

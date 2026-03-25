@@ -78,7 +78,7 @@ const props = defineProps<{
 
 const mainStore = useMainStore()
 const slidesStore = useSlidesStore()
-const { handleElementId, isScaling } = storeToRefs(mainStore)
+const { handleElementId, isScaling, elementStylePainter } = storeToRefs(mainStore)
 
 const { addHistorySnapshot } = useHistorySnapshot()
 
@@ -91,7 +91,25 @@ const handleSelectElement = (e: MouseEvent | TouchEvent, canMove = true) => {
   if (props.elementInfo.lock) return
   e.stopPropagation()
 
-  props.selectElement(e, props.elementInfo, canMove)
+  const painter = elementStylePainter.value
+  const applyingPainter = !!painter && painter.targetType === 'text' && painter.sourceElementId !== props.elementInfo.id
+  props.selectElement(e, props.elementInfo, applyingPainter ? false : canMove)
+
+  if (!applyingPainter) return
+
+  slidesStore.updateElement({
+    id: props.elementInfo.id,
+    props: {
+      width: painter.width ?? props.elementInfo.width,
+      height: painter.height ?? props.elementInfo.height,
+      fill: painter.fill,
+      outline: painter.outline,
+      opacity: painter.opacity,
+      shadow: painter.shadow,
+    },
+  })
+  addHistorySnapshot()
+  if (!painter.keep) mainStore.setElementStylePainter(null)
 }
 
 // 监听文本元素的尺寸变化，当高度变化时，更新高度到vuex
