@@ -263,6 +263,22 @@
 
     <Divider />
 
+    <template v-if="designAssets.masters.length">
+      <div class="title">已保存母版</div>
+      <div class="saved-master-list">
+        <div class="saved-master-item" v-for="item in designAssets.masters" :key="item.id">
+          <div class="preview" :style="{ backgroundImage: `url(${item.cover})` }"></div>
+          <div class="meta">
+            <div class="name">{{ item.name }}</div>
+            <div class="origin">{{ item.origin || '自定义母版' }}</div>
+          </div>
+          <Button size="small" type="primary" @click="applySavedMaster(item)">应用到全部</Button>
+        </div>
+      </div>
+
+      <Divider />
+    </template>
+
     <div class="title">预置主题</div>
     <div class="theme-list">
       <div 
@@ -319,12 +335,14 @@ import type {
   SlideBackgroundImage,
   SlideBackgroundImageSize,
   LineStyleType,
+  SavedMasterAsset,
 } from '@/types/slides'
 import { PRESET_THEMES } from '@/configs/theme'
 import { FONTS } from '@/configs/font'
 import useHistorySnapshot from '@/hooks/useHistorySnapshot'
 import useSlideTheme from '@/hooks/useSlideTheme'
 import { getImageDataURL } from '@/utils/image'
+import message from '@/utils/message'
 
 import ThemeStylesExtract from './ThemeStylesExtract.vue'
 import ThemeColorsSetting from './ThemeColorsSetting.vue'
@@ -344,7 +362,7 @@ import Modal from '@/components/Modal.vue'
 import GradientBar from '@/components/GradientBar.vue'
 
 const slidesStore = useSlidesStore()
-const { slides, currentSlide, slideIndex, viewportRatio, viewportSize, theme } = storeToRefs(slidesStore)
+const { slides, currentSlide, slideIndex, viewportRatio, viewportSize, theme, designAssets } = storeToRefs(slidesStore)
 
 const moreThemeConfigsVisible = ref(false)
 const themeStylesExtractVisible = ref(false)
@@ -368,6 +386,22 @@ const {
   applyThemeToAllSlides,
   applyFontToAllSlides,
 } = useSlideTheme()
+
+const applySavedMaster = (master: SavedMasterAsset) => {
+  slidesStore.setTheme(JSON.parse(JSON.stringify(master.theme)))
+
+  if (master.background) {
+    const nextSlides = JSON.parse(JSON.stringify(slides.value))
+    for (const slide of nextSlides) {
+      slide.background = JSON.parse(JSON.stringify(master.background))
+    }
+    slidesStore.setSlides(nextSlides)
+  }
+
+  slidesStore.setActiveDesignMaster(master.id)
+  applyThemeToAllSlides(true)
+  message.success(`已应用母版：${master.name}`)
+}
 
 watch(slideIndex, () => {
   currentGradientIndex.value = 0
@@ -582,6 +616,50 @@ const toFixed = (num: number) => {
     opacity: 0;
     transition: opacity $transitionDelay;
   }
+}
+
+.saved-master-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.saved-master-item {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 8px;
+  border: 1px solid #ececec;
+  border-radius: $borderRadius;
+  background: #fafafa;
+}
+
+.saved-master-item .preview {
+  height: 42px;
+  border-radius: 6px;
+  background-size: cover;
+  background-position: center;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.saved-master-item .meta {
+  min-width: 0;
+}
+
+.saved-master-item .name {
+  font-size: 12px;
+  font-weight: 600;
+  color: #333;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.saved-master-item .origin {
+  margin-top: 3px;
+  font-size: 12px;
+  color: #88909c;
 }
 .option {
   height: 32px;

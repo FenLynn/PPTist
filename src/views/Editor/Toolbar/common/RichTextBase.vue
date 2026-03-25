@@ -141,13 +141,6 @@
         v-tooltip="'清除格式'"
         @click="emitRichTextCommand('clear')"
       ><i-icon-park-outline:format /></CheckboxButton>
-      <CheckboxButton
-        style="flex: 1;"
-        :checked="!!textFormatPainter"
-        v-tooltip="'格式刷（双击连续使用）'"
-        @click="toggleTextFormatPainter()"
-        @dblclick="toggleTextFormatPainter(true)"
-      ><i-icon-park-outline:format-brush /></CheckboxButton>
       <Popover placement="bottom-end" trigger="click" v-model:value="linkPopoverVisible" style="width: 25%;">
         <template #content>
           <div class="link-popover">
@@ -264,7 +257,6 @@ import api from '@/services'
 import { useMainStore } from '@/store'
 import emitter, { EmitterEvents } from '@/utils/emitter'
 import { FONTS } from '@/configs/font'
-import useTextFormatPainter from '@/hooks/useTextFormatPainter'
 import message from '@/utils/message'
 import { htmlToText } from '@/utils/common'
 
@@ -282,9 +274,7 @@ import RadioButton from '@/components/RadioButton.vue'
 import RadioGroup from '@/components/RadioGroup.vue'
 import PopoverMenuItem from '@/components/PopoverMenuItem.vue'
 
-const { handleElement, handleElementId, richTextAttrs, textFormatPainter } = storeToRefs(useMainStore())
-
-const { toggleTextFormatPainter } = useTextFormatPainter()
+const { handleElement, handleElementId, richTextAttrs } = storeToRefs(useMainStore())
 
 const fontSizeOptions = [
   '12px', '14px', '16px', '18px', '20px', '22px', '24px', '28px', '32px',

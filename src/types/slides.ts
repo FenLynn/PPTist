@@ -784,3 +784,36 @@ export interface SlideTemplate {
   cover: string
   origin?: string
 }
+
+export interface SavedDesignAssetBase {
+  id: string
+  name: string
+  cover: string
+  origin?: string
+  createdAt: string
+  updatedAt: string
+}
+
+export interface SavedTemplateAsset extends SavedDesignAssetBase {
+  theme: SlideTheme
+  slides: Slide[]
+}
+
+export interface SavedMasterAsset extends SavedDesignAssetBase {
+  theme: SlideTheme
+  background?: SlideBackground
+}
+
+export interface PresentationDesignAssets {
+  templates: SavedTemplateAsset[]
+  masters: SavedMasterAsset[]
+  activeTemplateId: string
+  activeMasterId: string
+}
+
+export const createEmptyPresentationDesignAssets = (): PresentationDesignAssets => ({
+  templates: [],
+  masters: [],
+  activeTemplateId: '',
+  activeMasterId: '',
+})

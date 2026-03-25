@@ -171,15 +171,6 @@
     <ElementOpacity />
     <Divider />
 
-    <div class="row">
-      <CheckboxButton
-        v-tooltip="'双击连续使用'"
-        style="flex: 1;"
-        :checked="!!shapeFormatPainter"
-        @click="toggleShapeFormatPainter()"
-        @dblclick="toggleShapeFormatPainter(true)"
-      ><i-icon-park-outline:format-brush /> 形状格式刷</CheckboxButton>
-    </div>
   </div>
 </template>
 
@@ -192,7 +183,6 @@ import { type ShapePoolItem, SHAPE_LIST, SHAPE_PATH_FORMULAS } from '@/configs/s
 import { getImageDataURL } from '@/utils/image'
 import emitter, { EmitterEvents } from '@/utils/emitter'
 import useHistorySnapshot from '@/hooks/useHistorySnapshot'
-import useShapeFormatPainter from '@/hooks/useShapeFormatPainter'
 
 import ElementOpacity from '../common/ElementOpacity.vue'
 import ElementOutline from '../common/ElementOutline.vue'
@@ -201,7 +191,6 @@ import ElementFlip from '../common/ElementFlip.vue'
 import RichTextBase from '../common/RichTextBase.vue'
 import ShapeItemThumbnail from '@/views/Editor/CanvasTool/ShapeItemThumbnail.vue'
 import ColorButton from '@/components/ColorButton.vue'
-import CheckboxButton from '@/components/CheckboxButton.vue'
 import ColorPicker from '@/components/ColorPicker/index.vue'
 import Divider from '@/components/Divider.vue'
 import Slider from '@/components/Slider.vue'
@@ -214,7 +203,7 @@ import FileInput from '@/components/FileInput.vue'
 
 const mainStore = useMainStore()
 const slidesStore = useSlidesStore()
-const { handleElement, handleElementId, shapeFormatPainter } = storeToRefs(mainStore)
+const { handleElement, handleElementId } = storeToRefs(mainStore)
 
 const handleShapeElement = handleElement as Ref<PPTShapeElement>
 
@@ -264,7 +253,6 @@ watch(handleElementId, () => {
 })
 
 const { addHistorySnapshot } = useHistorySnapshot()
-const { toggleShapeFormatPainter } = useShapeFormatPainter()
 
 const updateElement = (props: Partial<PPTShapeElement>) => {
   slidesStore.updateElement({ id: handleElementId.value, props })

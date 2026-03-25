@@ -23,6 +23,12 @@
       <div class="recommends">
         <div class="recommend" v-for="(item, index) in recommends" :key="index" @click="setKeyword(item)">{{ item }}</div>
       </div>
+      <div class="setup-actions">
+        <FileInput class="setup-action" accept=".md,.markdown,.txt,.json,.smm,.mm" @change="files => importOutlineFile(files)">
+          <span>导入 Markdown / 导图</span>
+        </FileInput>
+        <div class="setup-action" @click="openOutlineDraft">直接编辑大纲</div>
+      </div>
       <div class="configs">
         <div class="config-item">
           <div class="label">语言：</div>
@@ -96,11 +102,15 @@
       <div class="templates">
         <div class="template" 
           :class="{ 'selected': selectedTemplate === template.id }" 
-          v-for="template in templates" 
+          v-for="template in availableTemplates" 
           :key="template.id" 
           @click="selectedTemplate = template.id"
         >
           <img :src="template.cover" :alt="template.name">
+          <div class="template-meta">
+            <div class="template-name">{{ template.name }}</div>
+            <div class="template-origin">{{ template.origin || '预置模板' }}</div>
+          </div>
         </div>
       </div>
       <div class="btns">
@@ -114,7 +124,7 @@
 </template>
 
 <script lang="ts" setup>
-import { ref, onMounted, useTemplateRef } from 'vue'
+import { computed, ref, onMounted, useTemplateRef } from 'vue'
 import { storeToRefs } from 'pinia'
 import { jsonrepair } from 'jsonrepair'
 import api from '@/services'
@@ -131,10 +141,11 @@ import Select from '@/components/Select.vue'
 import FullscreenSpin from '@/components/FullscreenSpin.vue'
 import OutlineEditor from '@/components/OutlineEditor.vue'
 import Checkbox from '@/components/Checkbox.vue'
+import FileInput from '@/components/FileInput.vue'
 
 const mainStore = useMainStore()
 const slidesStore = useSlidesStore()
-const { templates } = storeToRefs(slidesStore)
+const { templates, designAssets } = storeToRefs(slidesStore)
 const { aiModel, aiModels } = storeToRefs(mainStore)
 
 const { resetSlides, isEmptySlide } = useSlideHandler()
@@ -165,6 +176,16 @@ const recommends = ref([
   '大学生职业生涯规划',
   '公司年会策划方案',
 ]) 
+
+const availableTemplates = computed(() => {
+  const customTemplates = designAssets.value.templates.map(item => ({
+    id: item.id,
+    cover: item.cover,
+    name: item.name,
+    origin: item.origin || '当前工作区',
+  }))
+  return [...customTemplates, ...templates.value]
+})
 
 onMounted(() => {
   setTimeout(() => {
@@ -226,6 +247,79 @@ const createOutline = async () => {
   readStream()
 }
 
+const normalizeOutlineMarkdown = (markdown: string) => {
+  const cleaned = getMdContent(markdown).replace(/<!--[\s\S]*?-->/g, '')
+  return cleaned.trim()
+}
+
+const extractMindmapMarkdown = (payload: unknown, level = 1): string[] => {
+  if (!payload) return []
+
+  if (Array.isArray(payload)) {
+    return payload.flatMap(item => extractMindmapMarkdown(item, level))
+  }
+
+  if (typeof payload !== 'object') {
+    const text = String(payload).trim()
+    return text ? [`${'#'.repeat(Math.min(level, 3))} ${text}`] : []
+  }
+
+  const node = payload as Record<string, any>
+  const title = String(node.text || node.title || node.topic || node.label || node.name || node.content || '').trim()
+  const childSource = node.root ? [node.root] : (node.children || node.topics || node.nodes || node.items || [])
+  const children = Array.isArray(childSource) ? childSource : []
+
+  const lines: string[] = []
+  if (title) {
+    if (level <= 3) lines.push(`${'#'.repeat(level)} ${title}`)
+    else lines.push(`${'  '.repeat(level - 4)}- ${title}`)
+  }
+  for (const child of children) {
+    lines.push(...extractMindmapMarkdown(child, title ? level + 1 : level))
+  }
+  return lines
+}
+
+const parseImportedOutline = (text: string, filename = '') => {
+  const trimmed = text.trim()
+  if (!trimmed) return ''
+
+  const isJsonLike = /\.(json|smm|mm)$/i.test(filename) || /^[\[{]/.test(trimmed)
+  if (isJsonLike) {
+    const payload = JSON.parse(trimmed)
+    return extractMindmapMarkdown(payload).join('\n').trim()
+  }
+  return normalizeOutlineMarkdown(trimmed)
+}
+
+const importOutlineFile = async (files: FileList) => {
+  const file = files[0]
+  if (!file) return
+
+  try {
+    const text = await file.text()
+    const nextOutline = parseImportedOutline(text, file.name)
+    if (!nextOutline) return message.error('导入内容为空，无法生成大纲')
+
+    outline.value = nextOutline
+    keyword.value = file.name.replace(/\.[^.]+$/, '')
+    outlineCreating.value = false
+    step.value = 'outline'
+    message.success('已导入大纲，可继续编辑并生成 PPT')
+  }
+  catch {
+    message.error('导入失败，请确认文件为 Markdown 或导图 JSON')
+  }
+}
+
+const openOutlineDraft = () => {
+  if (!outline.value.trim()) {
+    const title = keyword.value.trim() || '新建主题'
+    outline.value = `# ${title}\n## 第一部分\n- 核心要点\n## 第二部分\n- 核心要点`
+  }
+  step.value = 'outline'
+}
+
 const createPPT = async (template?: { slides: Slide[], theme: SlideTheme }) => {
   loading.value = true
   mainStore.setAIPPTDialogState('running')
@@ -258,7 +352,17 @@ const createPPT = async (template?: { slides: Slide[], theme: SlideTheme }) => {
   }
 
   let templateData = template
-  if (!templateData) templateData = await api.getMockData(selectedTemplate.value)
+  if (!templateData) {
+    const customTemplate = designAssets.value.templates.find(item => item.id === selectedTemplate.value)
+    if (customTemplate) {
+      templateData = {
+        slides: JSON.parse(JSON.stringify(customTemplate.slides)),
+        theme: JSON.parse(JSON.stringify(customTemplate.theme)),
+      }
+      slidesStore.setActiveDesignTemplate(customTemplate.id)
+    }
+    else templateData = await api.getMockData(selectedTemplate.value)
+  }
   const templateSlides: Slide[] = templateData!.slides
   const templateTheme: SlideTheme = templateData!.theme
 
@@ -381,6 +485,31 @@ const uploadLocalTemplate = () => {
     }
   }
 }
+
+.setup-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.setup-action {
+  height: 34px;
+  padding: 0 12px;
+  border: 1px dashed #d0d7e2;
+  border-radius: $borderRadius;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #4d5b6c;
+  cursor: pointer;
+  background: #fafcff;
+
+  &:hover {
+    border-color: #9cb7d7;
+    background: #f3f8ff;
+  }
+}
+
 .select-template {
   .templates {
     max-height: 450px;
@@ -402,6 +531,22 @@ const uploadLocalTemplate = () => {
       img {
         width: 100%;
         min-height: 175px;
+      }
+
+      .template-meta {
+        padding: 8px 10px 10px;
+      }
+
+      .template-name {
+        font-size: 12px;
+        font-weight: 600;
+        color: #2f3742;
+      }
+
+      .template-origin {
+        margin-top: 4px;
+        font-size: 12px;
+        color: #8691a0;
       }
     }
   }

@@ -4,6 +4,8 @@
       <div class="action primary" @click="createTab">新建</div>
       <FileInput class="action" accept=".ppt,.pptx,.pptist,.json" @change="openLocalFiles">打开本地</FileInput>
       <div class="action" @click="saveLocalFile">保存本地</div>
+      <div class="action" @click="saveCurrentAsTemplate">存模板</div>
+      <div class="action" @click="saveCurrentAsMaster">存母版</div>
       <div class="action" @click="saveCacheSnapshot">保存缓存</div>
       <div class="action" @click="openCloudManager('load')">云端</div>
       <div class="action" @click="openCloudManager('save')">保存云端</div>
@@ -91,6 +93,7 @@ import { LOCALSTORAGE_KEY_LIGHT_CACHE } from '@/configs/storage'
 import { deleteCloudFile, listCloudFiles, loadCloudFile, saveCloudFile } from '@/services/pptist'
 import message from '@/utils/message'
 import {
+  createDesignAssetCover,
   parsePresentationFromPptist,
   serializePresentationAsPptist,
 } from '@/utils/presentation'
@@ -148,6 +151,44 @@ const resolveCloudFilename = () => {
 
 const createTab = () => {
   workspaceStore.addEmptyDocument()
+}
+
+const getAssetTimestamp = () => new Date().toISOString()
+
+const saveCurrentAsTemplate = () => {
+  if (!activeDoc.value) return
+
+  const createdAt = getAssetTimestamp()
+  slidesStore.upsertDesignTemplate({
+    id: `template_${crypto.randomUUID()}`,
+    name: `${activeDoc.value.title || '未命名演示文稿'} 模板`,
+    cover: createDesignAssetCover(slidesStore.theme, activeDoc.value.title || '模板', 'template'),
+    origin: '当前工作区',
+    createdAt,
+    updatedAt: createdAt,
+    theme: JSON.parse(JSON.stringify(slidesStore.theme)),
+    slides: JSON.parse(JSON.stringify(slidesStore.slides)),
+  })
+  workspaceStore.syncActiveFromStores(true)
+  message.success('当前稿件已保存到模板库')
+}
+
+const saveCurrentAsMaster = () => {
+  if (!activeDoc.value) return
+
+  const createdAt = getAssetTimestamp()
+  slidesStore.upsertDesignMaster({
+    id: `master_${crypto.randomUUID()}`,
+    name: `${activeDoc.value.title || '未命名演示文稿'} 母版`,
+    cover: createDesignAssetCover(slidesStore.theme, activeDoc.value.title || '母版', 'master'),
+    origin: '当前工作区',
+    createdAt,
+    updatedAt: createdAt,
+    theme: JSON.parse(JSON.stringify(slidesStore.theme)),
+    background: slidesStore.currentSlide?.background ? JSON.parse(JSON.stringify(slidesStore.currentSlide.background)) : undefined,
+  })
+  workspaceStore.syncActiveFromStores(true)
+  message.success('当前主题已保存到母版库')
 }
 
 const commitTitleUpdate = () => {

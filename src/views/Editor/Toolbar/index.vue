@@ -7,6 +7,7 @@
       @update:value="key => setToolbarState(key as ToolbarStates)"
     />
     <div class="content">
+      <UnifiedFormatPainter />
       <component :is="currentPanelComponent"></component>
     </div>
   </div>
@@ -25,6 +26,7 @@ import SlideDesignPanel from './SlideDesignPanel/index.vue'
 import SlideAnimationPanel from './SlideAnimationPanel.vue'
 import MultiPositionPanel from './MultiPositionPanel.vue'
 import MultiStylePanel from './MultiStylePanel.vue'
+import UnifiedFormatPainter from './common/UnifiedFormatPainter.vue'
 import Tabs from '@/components/Tabs.vue'
 
 const mainStore = useMainStore()

@@ -9,7 +9,7 @@ interface DashboardAIModel {
   provider?: string
 }
 
-const REQUIRED_MODELS: AIModelOption[] = [
+const FALLBACK_MODELS: AIModelOption[] = [
   { label: 'Gemini 2.5 Flash', value: 'gemini-2.5-flash' },
   { label: 'Gemini 2.5 Pro', value: 'gemini-2.5-pro' },
   { label: 'GLM-4.7-Flash', value: 'glm-4.7-flash' },
@@ -54,16 +54,9 @@ function parseDashboardModels(raw: string | null) {
 export function resolveAIModelConfig(search = window.location.search) {
   const params = new URLSearchParams(search)
   const dashboardModels = parseDashboardModels(params.get('aiModels'))
-  const merged = new Map<string, AIModelOption>()
-
-  for (const option of dashboardModels) merged.set(option.value, option)
-  for (const option of REQUIRED_MODELS) {
-    if (!merged.has(option.value)) merged.set(option.value, option)
-  }
-
-  const options = Array.from(merged.values())
+  const options = dashboardModels.length ? dashboardModels : FALLBACK_MODELS.slice()
   const requestedDefault = normalizeModelId(params.get('aiModel'))
-  const fallbackDefault = options.find(option => option.value === 'gemini-2.5-flash')?.value || options[0]?.value || ''
+  const fallbackDefault = options[0]?.value || ''
   const defaultModel = options.some(option => option.value === requestedDefault) ? requestedDefault : fallbackDefault
 
   return {

@@ -1,6 +1,16 @@
 import { defineStore } from 'pinia'
 import { omit } from 'lodash'
-import type { Slide, SlideTheme, PPTElement, PPTAnimation, SlideTemplate } from '@/types/slides'
+import {
+  createEmptyPresentationDesignAssets,
+  type Slide,
+  type SlideTheme,
+  type PPTElement,
+  type PPTAnimation,
+  type SlideTemplate,
+  type PresentationDesignAssets,
+  type SavedMasterAsset,
+  type SavedTemplateAsset,
+} from '@/types/slides'
 
 interface RemovePropData {
   id: string
@@ -26,6 +36,7 @@ export interface SlidesState {
   viewportSize: number
   viewportRatio: number
   templates: SlideTemplate[]
+  designAssets: PresentationDesignAssets
 }
 
 export const useSlidesStore = defineStore('slides', {
@@ -62,6 +73,7 @@ export const useSlidesStore = defineStore('slides', {
       { name: '深邃沉稳', id: 'template_7', cover: './imgs/template_7.webp', origin: '社区贡献+官方深度完善优化' },
       { name: '浅蓝小清新', id: 'template_8', cover: './imgs/template_8.webp', origin: '社区贡献+官方深度完善优化' },
     ], // 模板
+    designAssets: createEmptyPresentationDesignAssets(),
   }),
 
   getters: {
@@ -136,6 +148,45 @@ export const useSlidesStore = defineStore('slides', {
   
     setTemplates(templates: SlideTemplate[]) {
       this.templates = templates
+    },
+
+    setDesignAssets(designAssets: Partial<PresentationDesignAssets>) {
+      this.designAssets = {
+        ...this.designAssets,
+        ...designAssets,
+        templates: designAssets.templates || this.designAssets.templates,
+        masters: designAssets.masters || this.designAssets.masters,
+      }
+    },
+
+    upsertDesignTemplate(template: SavedTemplateAsset) {
+      this.designAssets = {
+        ...this.designAssets,
+        activeTemplateId: template.id,
+        templates: [template, ...this.designAssets.templates.filter(item => item.id !== template.id)],
+      }
+    },
+
+    upsertDesignMaster(master: SavedMasterAsset) {
+      this.designAssets = {
+        ...this.designAssets,
+        activeMasterId: master.id,
+        masters: [master, ...this.designAssets.masters.filter(item => item.id !== master.id)],
+      }
+    },
+
+    setActiveDesignTemplate(templateId: string) {
+      this.designAssets = {
+        ...this.designAssets,
+        activeTemplateId: templateId,
+      }
+    },
+
+    setActiveDesignMaster(masterId: string) {
+      this.designAssets = {
+        ...this.designAssets,
+        activeMasterId: masterId,
+      }
     },
   
     addSlide(slide: Slide | Slide[]) {

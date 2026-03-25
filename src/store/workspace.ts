@@ -125,6 +125,7 @@ export const useWorkspaceStore = defineStore('workspace', {
       slidesStore.setTitle(doc.data.title)
       slidesStore.setViewportSize(doc.data.viewportSize)
       slidesStore.setViewportRatio(doc.data.viewportRatio)
+      slidesStore.setDesignAssets(doc.data.designAssets)
       slidesStore.updateSlideIndex(doc.data.slideIndex)
       mainStore.setActiveElementIdList([])
       mainStore.updateSelectedSlidesIndex([])
