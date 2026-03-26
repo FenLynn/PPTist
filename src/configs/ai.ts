@@ -9,10 +9,12 @@ interface DashboardAIModel {
   provider?: string
 }
 
-const FALLBACK_MODELS: AIModelOption[] = [
+const REQUIRED_MODELS: AIModelOption[] = [
   { label: 'Gemini 3.1 Flash', value: 'gemini-3.1-flash-lite-preview' },
   { label: 'Gemini 2.5 Flash', value: 'gemini-2.5-flash' },
   { label: 'Gemini 3.0 Flash', value: 'gemini-3-flash-preview' },
+  { label: 'GLM-4.7-Flash', value: 'glm-4.7-flash' },
+  { label: 'Doubao-Seed-1.6-Flash', value: 'doubao-seed-1.6-flash' },
 ]
 
 function normalizeModelId(value: unknown) {
@@ -53,7 +55,14 @@ function parseDashboardModels(raw: string | null) {
 export function resolveAIModelConfig(search = window.location.search) {
   const params = new URLSearchParams(search)
   const dashboardModels = parseDashboardModels(params.get('aiModels'))
-  const options = dashboardModels.length ? dashboardModels : FALLBACK_MODELS.slice()
+  const merged = new Map<string, AIModelOption>()
+
+  for (const option of dashboardModels) merged.set(option.value, option)
+  for (const option of REQUIRED_MODELS) {
+    if (!merged.has(option.value)) merged.set(option.value, option)
+  }
+
+  const options = Array.from(merged.values())
   const requestedDefault = normalizeModelId(params.get('aiModel'))
   const fallbackDefault = options[0]?.value || ''
   const defaultModel = options.some(option => option.value === requestedDefault) ? requestedDefault : fallbackDefault
