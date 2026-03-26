@@ -29,6 +29,11 @@
         </FileInput>
         <div class="setup-action" @click="openOutlineDraft">直接编辑大纲</div>
       </div>
+      <div v-if="isDashboardModelPool" class="dashboard-model-bar">
+        <span class="tag">Dashboard 模型池</span>
+        <span class="text">当前使用 {{ currentModelLabel }}</span>
+        <span class="text">可选 {{ aiModels.length }} 个模型</span>
+      </div>
       <div class="configs">
         <div class="config-item">
           <div class="label">语言：</div>
@@ -190,6 +195,15 @@ const availableTemplates = computed(() => {
     slideCount: item.slides.length,
   }))
   return [...customTemplates, ...templates.value.map(item => ({ ...item, slideCount: 0 }))]
+})
+
+const isDashboardModelPool = computed(() => {
+  return aiModels.value.length > 0
+})
+
+const currentModelLabel = computed(() => {
+  const current = aiModels.value.find(item => item.value === aiModel.value)
+  return current?.label || aiModel.value || '默认模型'
 })
 
 watch(() => designAssets.value.activeTemplateId, templateId => {
@@ -515,6 +529,37 @@ const uploadLocalTemplate = () => {
   margin-top: 12px;
 }
 
+.dashboard-model-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 12px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #eef6ff, #f2fbf6);
+  border: 1px solid #cfe2ff;
+
+  .tag {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    height: 24px;
+    padding: 0 10px;
+    border-radius: 999px;
+    background: rgba(59, 130, 246, 0.12);
+    color: #1d4ed8;
+    font-size: 12px;
+    font-weight: 700;
+    white-space: nowrap;
+  }
+
+  .text {
+    color: #506072;
+    font-size: 12px;
+    line-height: 1.4;
+  }
+}
+
 .setup-action {
   height: 34px;
   padding: 0 12px;
@@ -641,6 +686,11 @@ const uploadLocalTemplate = () => {
 }
 
 @media screen and (width <= 800px) {
+  .dashboard-model-bar {
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
   .configs {
     margin-top: 15px;
     display: flex;
